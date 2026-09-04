@@ -582,13 +582,11 @@ client.on("interactionCreate", async interaction => {
   // PLAY
   // =======================
 
-  if (interaction.commandName === "play") {
+    if (interaction.commandName === "play") {
     await interaction.deferReply();
 
     const url = interaction.options.getString("url");
-
-    const voiceChannel =
-      interaction.member?.voice?.channel;
+    const voiceChannel = interaction.member?.voice?.channel;
 
     if (!voiceChannel) {
       return interaction.editReply(
@@ -597,14 +595,13 @@ client.on("interactionCreate", async interaction => {
     }
 
     try {
-      let queue = queues.get(guildId);
+      let queue = queues.get(interaction.guild.id);
 
       if (!queue) {
         const connection = joinVoiceChannel({
           channelId: voiceChannel.id,
-          guildId,
-          adapterCreator:
-            interaction.guild.voiceAdapterCreator,
+          guildId: interaction.guild.id,
+          adapterCreator: interaction.guild.voiceAdapterCreator,
           selfDeaf: false,
         });
 
@@ -614,12 +611,7 @@ client.on("interactionCreate", async interaction => {
           15_000
         );
 
-        const player = createAudioPlayer({
-          behaviors: {
-            noSubscriber:
-              NoSubscriberBehavior.Play,
-          },
-        });
+        const player = createAudioPlayer();
 
         connection.subscribe(player);
 
@@ -628,13 +620,15 @@ client.on("interactionCreate", async interaction => {
           player,
           songs: [],
           playing: false,
-          currentlyPlaying: false,
           ffmpeg: null,
         };
 
-        queues.set(guildId, queue);
+        queues.set(interaction.guild.id, queue);
 
-        setupPlayerEvents(guildId, player);
+        setupPlayerEvents(
+          interaction.guild.id,
+          player
+        );
 
         console.log(
           `🔊 Voice connection ready for ${voiceChannel.name}`
@@ -643,6 +637,7 @@ client.on("interactionCreate", async interaction => {
 
       queue.songs.push({
         url,
+        title: url,
       });
 
       const position = queue.songs.length;
@@ -651,7 +646,6 @@ client.on("interactionCreate", async interaction => {
         `📋 Added to queue. Position: ${position}`
       );
 
-      // Already playing.
       if (queue.playing) {
         return interaction.editReply(
           `📋 Added to queue. Position: **${position}**`
@@ -662,16 +656,23 @@ client.on("interactionCreate", async interaction => {
         "🎵 Preparing audio..."
       );
 
-      try {
-        await playSong(guildId);
+      await playSong(interaction.guild.id);
 
-        await interaction.editReply(
-          "🎵 Now playing!"
-        );
-      } catch (error) {
-        await interaction.editReply(
-          `❌ ${error.message}`
-        );
-      }
+      return interaction.editReply(
+        "🎵 Now playing!"
+      );
 
-      return;
+    } catch (error) {
+      console.error(
+        "❌ Playback failed:",
+        error
+      );
+
+      return interaction.editReply(
+        `❌ ${error.message}`
+      );
+    }
+  }
+});
+
+client.login(process.env.DISCORD_BOT_TOKEN);
